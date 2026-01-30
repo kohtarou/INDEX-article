@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【DB工学】インデックス設計・究極講義：内部構造(Pages)からコスト計算まで</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Fira+Code:wght@500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #e74c3c;
+            /* Red for expert feel */
+            --bg-color: #f4f6f7;
+            --text-color: #2c3e50;
+            --code-bg: #282c34;
+            --deep-dive-bg: #ebf5fb;
+            --deep-dive-border: #3498db;
+            --math-bg: #fff;
+            --math-border: #f1c40f;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.8;
+            margin: 0;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a252f, #34495e);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 50px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 3em;
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+
+        h2 {
+            border-bottom: 4px solid var(--accent-color);
+            padding-bottom: 10px;
+            margin-top: 60px;
+            font-size: 2em;
+            color: var(--primary-color);
+        }
+
+        h3 {
+            border-left: 6px solid #34495e;
+            padding-left: 15px;
+            margin-top: 40px;
+            font-size: 1.5em;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            color: #dcdfe4;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9em;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #3e4451;
+        }
+
+        /* Expert Sections */
+        .deep-dive {
+            background-color: var(--deep-dive-bg);
+            border-left: 6px solid var(--deep-dive-border);
+            padding: 25px;
+            margin: 40px 0;
+            border-radius: 0 8px 8px 0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .deep-dive h4 {
+            color: var(--deep-dive-border);
+            margin: 0 0 15px 0;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+        }
+
+        .deep-dive h4::before {
+            content: "🎓 INTERNALS: ";
+            font-weight: 900;
+            margin-right: 10px;
+        }
+
+        .math-box {
+            background-color: var(--math-bg);
+            border: 2px solid var(--math-border);
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .math-box::after {
+            content: "Math & Logic";
+            position: absolute;
+            top: -12px;
+            right: 20px;
+            background: var(--math-border);
+            color: #000;
+            padding: 2px 10px;
+            font-size: 0.8em;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+
+        .math-formula {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-size: 1.2em;
+            text-align: center;
+            margin: 15px 0;
+            color: #333;
+        }
+
+        /* Drill Layout - Vertical now */
+        .drill-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .drill-card {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            border-left: 5px solid #bdc3c7;
+            transition: all 0.3s ease;
+        }
+
+        .drill-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .drill-card.type-sql {
+            border-left-color: #27ae60;
+        }
+
+        .drill-card.type-theory {
+            border-left-color: #2980b9;
+        }
+
+        .drill-card.type-hard {
+            border-left-color: #e74c3c;
+        }
+
+        .drill-q {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        details[open] summary {
+            margin-bottom: 15px;
+            border-bottom: 1px dashed #ccc;
+        }
+
+        summary {
+            cursor: pointer;
+            color: #7f8c8d;
+            font-weight: bold;
+            outline: none;
+            padding: 5px 0;
+        }
+
+        .answer {
+            font-size: 0.95em;
+            color: #444;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 3px solid #27ae60;
+            line-height: 1.6;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            color: white;
+            margin-right: 10px;
+            vertical-align: middle;
+            font-weight: bold;
+        }
+
+        .tag-calc {
+            background: #8e44ad;
+        }
+
+        .tag-algo {
+            background: #2980b9;
+        }
+
+        .tag-sql {
+            background: #27ae60;
+        }
+
+        .tag-deep {
+            background: #e67e22;
+        }
+
+        .drill-code {
+            display: block;
+            background: #282c34;
+            /* Dark theme to match pre */
+            color: #dcdfe4;
+            border-left: 5px solid #3498db;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.95em;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .star-rating {
+            color: #f1c40f;
+            font-size: 0.9em;
+            margin-left: 10px;
+            letter-spacing: 2px;
+        }
+
+        table.cost-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+        }
+
+        table.cost-table th,
+        table.cost-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        table.cost-table th {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>データベース工学 究極講義</h1>
+        <p>Index Design Ultimate Edition: Internals, Cost Model, and 20 Drills</p>
+        <div style="margin-top: 20px; font-size: 0.9em; opacity: 0.9;">
+            想定読者: データベースの挙動を"物理レベル"で理解したい学生<br>
+            PostgreSQL 17 対応 | 学習時間目安: 120分〜無制限
+        </div>
+    </header>
+
+    <main style="max-width: 1000px; margin: 0 auto;">
+
+        <section id="intro">
+            <h2>0. 序論：なぜそのSQLは遅いのか？</h2>
+            <p>「インデックスを貼れば速くなる」。これは真実ですが、エンジニアとしては50点です。<br>
+                100点の回答は、「<strong>どのようなデータ構造により、物理的なディスクシーク(I/O)をどれだけ削減できるから速くなるのか</strong>」を説明できることです。</p>
+            <p>本講義では、単なる使い方の解説で終わらせません。PostgreSQLのオプティマイザ（頭脳）が計算している<strong>「コスト(Cost)」の数式</strong>を解き明かし、なぜSeq
+                Scanが選ばれるのか、なぜIndex Scanが選ばれるのかを数学的に証明します。</p>
+        </section>
+
+        <section id="internals">
+            <h2>1. PostgreSQLの物理構造 (Internals)</h2>
+
+            <div class="deep-dive">
+                <h4>全ては 8KB のページから始まる</h4>
+                <p>PostgreSQLにおいて、データは全て「ページ（ブロック）」という単位で管理されます。デフォルトサイズは <strong>8KB (8192 bytes)</strong> です。<br>
+                    100万件のデータは、連続した1つのファイルではなく、数千〜数万個の8KBの箱に分割されてディスクに保存されています。</p>
+                <ul>
+                    <li><strong>Heap (Table)</strong>: 実際の行データ (Tuple) が詰め込まれている場所。整理整頓されておらず、挿入順に置かれる（追記型）。</li>
+                    <li><strong>Index (B-tree)</strong>: 特定のカラムの値と、その行が「どのページのどこにあるか」を示す住所 (TID: Tuple Identifier)
+                        を持った、整理された木構造。</li>
+                </ul>
+            </div>
+
+            <p>今回の実験で作った <code>users_expert</code> テーブル (100万件) の物理サイズを確認してみましょう。</p>
+            <pre><code>SELECT relpages, reltuples FROM pg_class WHERE relname = 'users_expert';
+-- 結果: relpages = 17906, reltuples = 1000000</code></pre>
+            <p>つまり、100万件のデータは <strong>17,906個</strong> の8KBページに格納されているということです。<br>
+                全データを読む (Seq Scan) ということは、この17,906ページ全てをディスクからメモリに読み込むことを意味します。</p>
+        </section>
+
+        <section id="cost-model">
+            <h2>2. コストモデル(Cost Model)の数式</h2>
+            <p><code>EXPLAIN</code> で表示される <code>cost=27906.00</code> のような謎の数字。これはオプティマイザが以下のパラメータを使って計算した「推定コスト」です。</p>
+
+            <div class="code-header">実行結果: コストパラメータの確認</div>
+            <pre><code>testdb=# SHOW seq_page_cost;
+ seq_page_cost 
+---------------
+ 1
+(1 row)
+
+testdb=# SHOW random_page_cost;
+ random_page_cost 
+------------------
+ 4
+(1 row)
+
+testdb=# SHOW cpu_tuple_cost;
+ cpu_tuple_cost 
+----------------
+ 0.01
+(1 row)</code></pre>
+
+            <div class="math-box">
+                <h4>Seq Scan コストの証明</h4>
+                <div class="math-formula">
+                    Seq Scan Cost = (Disk Pages × seq_page_cost) + (Rows × cpu_tuple_cost)
+                </div>
+                <p>今回の <code>users_expert</code> テーブルの物理統計情報は以下の通りです（実測値）。</p>
+                <pre><code>          relname           | Total Pages (8KB blocks) | Total Rows | Total Size 
+----------------------------+--------------------------+------------+------------
+ users_expert               |                    17906 |    1000000 | 140 MB</code></pre>
+
+                <p>Calculation:<br>
+                    <code>(17906 * 1.0) + (1000000 * 0.01) = 17906 + 10000 = <strong>27,906.00</strong></code>
+                </p>
+                <p>実際の実行計画を見てみましょう。コストの値がこの計算と完全に一致していることが確認できます。</p>
+
+                <div class="code-header">実行結果: Seq Scan のコスト</div>
+                <pre><code>EXPLAIN (FORMAT JSON, ANALYZE) SELECT * FROM users_expert WHERE score = 50;
+----------------------------------------------------------------------------------
+ [
+   {
+     "Plan": {
+       "Node Type": "Seq Scan",
+       "Relation Name": "users_expert",
+       "Startup Cost": 0.00,
+       "Total Cost": 27906.00,    <-- 計算通りの値！
+       "Plan Rows": 10110,
+       "Plan Width": 68,
+       "Actual Startup Time": 0.055,
+       "Actual Total Time": 115.892,
+       "Actual Rows": 9986,
+       "Actual Loops": 1,
+       "Filter": "(score = 50)",
+       "Rows Removed by Filter": 990014
+     },
+     "Planning Time": 0.283,
+     "Execution Time": 116.452
+   }
+ ]</code></pre>
+            </div>
+        </section>
+
+        <section id="experiments">
+            <h2>3. 徹底実験と考察</h2>
+
+            <h3>実験1: インデックススキャンのコスト構造</h3>
+            <p>インデックスを作成し、同じクエリを実行してみます。</p>
+            <div class="code-header">実行結果: Index Scan</div>
+            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score = 50;
+
+Bitmap Heap Scan on users_expert  (cost=116.78..3630.90 rows=10033 width=68)
+                                  (actual time=2.169..14.542 rows=9986 loops=1)
+  Recheck Cond: (score = 50)
+  Heap Blocks: exact=5724
+  ->  Bitmap Index Scan on idx_score_expert  (cost=0.00..114.27 rows=10033 width=0)
+                                            (actual time=1.353..1.353 rows=9986 loops=1)
+        Index Cond: (score = 50)
+Planning Time: 0.177 ms
+Execution Time: 15.013 ms</code></pre>
+            <p><strong>考察:</strong></p>
+            <ul>
+                <li><strong>Seq Scan (116ms) → Index Scan (15ms)</strong>: 約8倍の高速化です。</li>
+                <li><strong>Bitmap Heap Scan</strong>: 今回はヒット件数が約1万件あるため、ランダムアクセスを少しでも減らすためにBitmap Scanが選ばれました。</li>
+                <li><strong>Heap Blocks</strong>: B-treeから得た住所を使って、5724個のヒープブロックを読みに行っていることがわかります。これがコストの大半を占めています。</li>
+            </ul>
+
+            <h3>実験2: Index Only Scan と Visibility Map</h3>
+            <p>次に、<code>INCLUDE</code> オプション付きのインデックス（カバリングインデックス）を使用した結果です。</p>
+            <div class="code-header">実行結果: Index Only Scan</div>
+            <pre><code>EXPLAIN ANALYZE SELECT id, score FROM users_expert WHERE score = 50;
+
+Index Only Scan using idx_score_include on users_expert  (cost=0.42..317.92 rows=10033 width=8)
+                                                        (actual time=0.046..2.396 rows=9986 loops=1)
+  Index Cond: (score = 50)
+  Heap Fetches: 0
+Planning Time: 0.160 ms
+Execution Time: 3.125 ms</code></pre>
+            <div class="deep-dive">
+                <h4>テーブルを見に行かない究極の最適化</h4>
+                <p><strong>Execution Time: 3.125 ms</strong>。通常の Index Scan (15ms) よりもさらに高速です。<br>
+                    注目すべきは <strong><code>Heap Fetches: 0</code></strong>
+                    という行です。これは「ヒープ（テーブル本体）へのアクセスが0回だった」ことを証明しています。<br>
+                    必要な <code>id</code> と <code>score</code> が全てインデックス上にあり、かつ Visibility Map によって全行が有効であると保証されていたためです。
+                </p>
+            </div>
+            <h3>実験3: 複合インデックスとB-treeの並び順</h3>
+            <p><code>(category, score)</code> の複合インデックスに対する2つのクエリ比較です。</p>
+
+            <h4>ケースA: 左側のカラム (Category) を指定した場合</h4>
+            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE category = 50;
+
+Bitmap Heap Scan on users_expert  (cost=114.77..3570.62 rows=9898 width=68)
+                                  (actual time=1.868..14.306 rows=9909 loops=1)
+  Recheck Cond: (category = 50)
+  ->  Bitmap Index Scan on idx_category_expert  (cost=0.00..112.30 rows=9898 width=0)
+                                               (actual time=1.272..1.272 rows=9909 loops=1)</code></pre>
+            <p>問題なくインデックスが使われています。</p>
+
+            <h4>ケースB: 右側のカラム (Score) のみを指定した場合</h4>
+            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score = 50;
+-- (idx_score_expert を削除した状態で実行)
+
+Seq Scan on users_expert  (cost=0.00..27906.00 rows=10110 width=68)
+                          (actual time=0.063..118.590 rows=9986 loops=1)
+  Filter: (score = 50)</code></pre>
+            <p><strong>インデックスが使われていません（Seq Scan）。</strong><br>
+                <code>(category, score)</code> インデックスは、category でソートされた状態であるため、いきなり score
+                を探すことは辞書を「後ろの文字」で引くようなものであり、物理的に不可能なのです。
+            </p>
+        </section>
+
+        <section id="more-experiments">
+            <h3>実験4: 範囲検索とソート回避</h3>
+            <p>B-tree は順序を持っているため、「10以上20以下」のような範囲検索や、「スコアの高い順」のようなソート処理にも効果を発揮します。</p>
+
+            <div class="code-header">実行結果: Range Scan</div>
+            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score BETWEEN 10 AND 20;
+
+Bitmap Heap Scan on users_expert ...
+  ->  Bitmap Index Scan on idx_score_expert
+        Index Cond: ((score >= 10) AND (score <= 20))</code></pre>
+
+            <p>さらに強力なのが <strong>ソート回避</strong> です。<code>ORDER BY</code>
+                は通常、重いソート処理（メモリ不足時はディスクソート）が発生しますが、インデックスを使えば「既に並んでいるものを読むだけ」になります。</p>
+
+            <div class="code-header">実行結果: Sort Avoidance (Limit)</div>
+            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert ORDER BY score LIMIT 10;
+
+Limit  (cost=0.42..1.17 rows=10 width=68) (actual time=0.046..0.063 rows=10 loops=1)
+  ->  Index Scan using idx_score_expert on users_expert  (cost=0.42..30255.42 rows=1000000 width=68)
+                                                        (actual time=0.045..0.061 rows=10 loops=1)
+Planning Time: 0.089 ms
+Execution Time: 0.078 ms</code></pre>
+            <p><strong>Execution Time: 0.078 ms</strong>。<br>
+                <code>Sort</code> ノードが存在しません。100万件あっても、B-treeの端から10個拾うだけなので、一瞬で終わります。
+            </p>
+
+            <h3>実験5: インデックスが効かないNGパターン</h3>
+            <div class="deep-dive">
+                <h4>オプティマイザがインデックスを捨てる時</h4>
+                <p>「インデックスを作ったのに使われない」という相談が後を絶ちません。代表的なケースを見てみましょう。</p>
+            </div>
+
+            <h4>ケース1: 演算子の使用 (Calculation)</h4>
+            <div class="code-header">実行結果: WHERE score + 10 = 50</div>
+            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score + 10 = 50;
+
+Seq Scan on users_expert  (cost=0.00..30406.00 rows=5000 width=68)
+                          (actual time=0.061..135.532 rows=9964 loops=1)
+  Filter: ((score + 10) = 50)</code></pre>
+            <p><code>score</code> カラムではなく <code>score + 10</code> という計算結果に対して条件指定しているため、インデックスは使えません。</p>
+
+            <h4>ケース2: カーディナリティ (Cardinality) の罠</h4>
+            <p><code>pref_code</code> (1〜47) に対して、<code>pref_code > 0</code> （つまり全件ヒット）を実行した場合。</p>
+            <div class="code-header">実行結果: High Hit Rate</div>
+            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE pref_code > 0;
+
+Seq Scan on users_expert ...
+  Filter: (pref_code > 0)</code></pre>
+            <p>インデックスを使うと「インデックスを読む + ランダムアクセスする」という2度手間になります。全件取得するなら、端から順に読む Seq Scan の方が圧倒的に速いのです。</p>
+        </section>
+
+        <section id="drills">
+            <h2>4. 徹底演習：DBエンジニアへの道 (全20問)</h2>
+            <p>知識を定着させるための演習問題です。ただ読むだけでなく、実際にどうSQLを書くか、頭の中でシミュレーションしながら解いてください。</p>
+
+            <h3>第1部: 基礎理論 (Theory & Math)</h3>
+            <div class="drill-container">
+
+                <div class="drill-card type-theory">
+                    <div class="drill-q">
+                        <span>Q1. B-tree計算量と高さ</span>
+                        <span class="star-rating">★☆☆☆☆</span>
+                    </div>
+                    <div>
+                        <p>データ件数 <i>N</i> = 1,000,000
+                            のテーブルがあります。主キー検索を行う際、B-treeインデックスを使うと、なぜわずか数回のディスクアクセスでデータに到達できるのですか？計算量の観点から説明してください。</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 対数時間 <i>O</i>(log <i>N</i>) で探索できるため。</strong><br>
+                            B-tree は平衡木であり、1つのノード（ページ）に数百個の分岐（ファンアウト）を持ちます。底が数百の対数計算となるため、log<sub>数百</sub> 1,000,000
+                            &approx; 2 &sim; 3 となり、高さ(Depth)は非常に低く抑えられます。これにより、100万件データでも、ルート→ブランチ→リーフと2〜3回のホップで到達可能です。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-theory">
+                    <div class="drill-q">
+                        <span>Q2. コストモデルの計算</span>
+                        <span class="star-rating">★★☆☆☆</span>
+                    </div>
+                    <div>
+                        <p>あるクエリの実行計画で、<code>Disk Pages = 100</code>, <code>Rows = 500</code> でした。<br>
+                            <code>seq_page_cost = 1.0</code>, <code>cpu_tuple_cost = 0.01</code> の環境において、Seq Scan
+                            の推定コスト値を計算してください。
+                        </p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 105.00</strong><br>
+                            計算式: <code>(Disk Pages × seq_page_cost) + (Rows × cpu_tuple_cost)</code><br>
+                            = (100 × 1.0) + (500 × 0.01)<br>
+                            = 100 + 5.0 = 105.0
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-theory">
+                    <div class="drill-q">
+                        <span>Q3. B-tree と NULL</span>
+                        <span class="star-rating">★★☆☆☆</span>
+                    </div>
+                    <div>
+                        <p>「B-tree インデックスには NULL 値が含まれないため、<code>IS NULL</code> 検索は常に全表走査になる」という説は正しいですか？（PostgreSQLの場合）
+                        </p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 間違い (False)</strong><br>
+                            Oracle
+                            DBなど一部のDBMSではNULLがインデックスに含まれない場合がありますが、<strong>PostgreSQLのB-treeはNULLをインデックスに含みます</strong>（デフォルトではソート順の最後尾）。<br>
+                            したがって、<code>WHERE col IS NULL</code> に対しても Index Scan は有効です。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-theory">
+                    <div class="drill-q">
+                        <span>Q4. 選択率 (Selectivity) の閾値</span>
+                        <span class="star-rating">★★☆☆☆</span>
+                    </div>
+                    <div>
+                        <p>インデックススキャンが Seq Scan よりも遅くなる分岐点（損益分岐点）は、一般的に全体の何%程度のヒット率と言われていますか？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 5% 〜 15% 程度</strong><br>
+                            「20%程度」と言われることもありますが、近年のSSD環境においてもランダムアクセスはシーケンシャルアクセスよりコストが高く、数%〜10%程度のヒット率を超えると、オプティマイザは
+                            Seq Scan や Bitmap Scan に切り替える傾向があります。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-theory">
+                    <div class="drill-q">
+                        <span>Q5. クラスター化係数</span>
+                        <span class="star-rating">★★★☆☆</span>
+                    </div>
+                    <div>
+                        <p><code>CLUSTERING_FACTOR</code> (物理的な並び順とインデックス順の相関) が悪い（0に近い）場合、Index Scan が遅くなる理由は？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: ランダムアクセスが多発するため。</strong><br>
+                            インデックス上で隣り合っているID (例: 100, 101, 102)
+                            が、Heap（テーブル本体）上では全く別のページに散らばっている場合、それぞれ別々のページを読み込む必要があり、ディスクI/Oが激増します。
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <h3>第2部: SQLコーディングドリル (Writing Query & DDL)</h3>
+            <p><strong>課題:</strong> 以下の要件を満たすSQL（主に <code>CREATE INDEX</code> 文）を記述してください。</p>
+
+            <div class="drill-container">
+
+                <div class="drill-card type-sql">
+                    <div class="drill-q">
+                        <span>Q6. 名前検索の高速化</span>
+                        <span class="star-rating">★☆☆☆☆</span>
+                    </div>
+                    <div>
+                        <p><code>users</code> テーブルの <code>email</code> カラムで検索を行う以下のクエリが遅いと報告がありました。</p>
+                        <div class="drill-code">SELECT * FROM users WHERE email = 'test@example.com';</div>
+                        <p>これを高速化するための最適なDDLを記述してください。</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <pre><code>CREATE INDEX idx_users_email ON users(email);</code></pre>
+                            <p>基本中の基本です。一意性（重複なし）が保証できるなら <code>CREATE UNIQUE INDEX</code> の方がより良いでしょう。</p>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-sql">
+                    <div class="drill-q">
+                        <span>Q7. 年別データの抽出 (関数インデックス)</span>
+                        <span class="star-rating">★★☆☆☆</span>
+                    </div>
+                    <div>
+                        <p><code>created_at</code> (TIMESTAMP) カラムを持つテーブルに対し、2025年のデータを抽出したい。</p>
+                        <div class="drill-code">WHERE extract(year from created_at) = 2025</div>
+                        <p>このクエリを高速化するためのインデックス定義を記述してください。</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <pre><code>CREATE INDEX idx_users_created_year ON users( extract(year from created_at) );</code></pre>
+                            <p><strong>解説:</strong> 関数適用後の結果に対してインデックスを作成する「関数インデックス」が必要です。<br>
+                                別解として、クエリ側を <code>WHERE created_at BETWEEN '2025-01-01' AND '2025-12-31'</code>
+                                に書き換えられるなら、通常の <code>(created_at)</code> インデックスでも対応可能です。</p>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-sql">
+                    <div class="drill-q">
+                        <span>Q8. 複合条件とソート</span>
+                        <span class="star-rating">★★★☆☆</span>
+                    </div>
+                    <div>
+                        <p>掲示板テーブル <code>posts</code> (category_id, created_at, ...) があります。<br>
+                            「特定のカテゴリ(<code>category_id=5</code>)」の投稿を、「新しい順(<code>created_at DESC</code>)」に表示したい。</p>
+                        <div class="drill-code">SELECT * FROM posts
+                            WHERE category_id = 5
+                            ORDER BY created_at DESC;</div>
+                        <p>このクエリで <strong>Sort処理を発生させない</strong> 最適なインデックスは？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <pre><code>CREATE INDEX idx_posts_cat_date ON posts(category_id, created_at DESC);</code></pre>
+                            <p><strong>解説:</strong> <code>category_id</code> で絞り込んだ後、その中身がすでに <code>created_at</code>
+                                順に並んでいる必要があるため、この順序の複合インデックスが必須です。</p>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-sql">
+                    <div class="drill-q">
+                        <span>Q9. 部分インデックス (Partial Index)</span>
+                        <span class="star-rating">★★★☆☆</span>
+                    </div>
+                    <div>
+                        <p>社員テーブル <code>employees</code> に <code>deleted_at</code> (TIMESTAMP) カラムがあります。<br>
+                            退職済み（deleted_at が入っている）社員は全体の50%を占めますが、検索されるのは常に「在職中 (deleted_at IS NULL)」の社員だけです。<br>
+                            インデックスサイズを節約しつつ、在職社員の検索を高速化するDDLを書いてください。</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <pre><code>CREATE INDEX idx_active_employees ON employees(id) WHERE deleted_at IS NULL;</code></pre>
+                            <p><strong>解説:</strong> <code>WHERE</code>
+                                句付きのインデックス（部分インデックス）を作成することで、インデックスサイズを半分に削減でき、更新コストも抑えられます。</p>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-sql">
+                    <div class="drill-q">
+                        <span>Q10. カバリングインデックス</span>
+                        <span class="star-rating">★★★★☆</span>
+                    </div>
+                    <div>
+                        <p>商品テーブル <code>products</code> から、<code>id</code> と <code>price</code> だけを取得するクエリが頻繁に走ります。</p>
+                        <div class="drill-code">SELECT id, price FROM products WHERE category_id = 10;</div>
+                        <p>テーブル本体へのアクセスを完全に回避し、高速化するためのインデックス定義は？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <pre><code>CREATE INDEX idx_products_cover ON products(category_id) INCLUDE (id, price);</code></pre>
+                            <p><strong>解説:</strong> 検索条件である <code>category_id</code> をキーにし、取得したい <code>id</code>,
+                                <code>price</code> を <code>INCLUDE</code> (付加領域) に含めることで、Index Only Scan を実現できます。</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <h3>第3部: トラブルシューティング・上級 (Advanced Scenario)</h3>
+
+            <div class="drill-container">
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q11. 複合インデックスの順序</span>
+                        <span class="star-rating">★★★★☆</span>
+                    </div>
+                    <div>
+                        <p>以下の条件で検索するクエリがあります。</p>
+                        <div class="drill-code">WHERE A = 1 AND B = 2</div>
+                        <p>これに対し、<code>(A, B)</code> と <code>(B, A)</code> どちらのインデックスを作るべきですか？<br>
+                            条件: <code>A</code> は性別（カーディナリティ低）、<code>B</code> は会員ランク（カーディナリティ中）。<br>
+                            単体での検索頻度は <code>B</code> の方が多い。</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: (B, A)</strong><br>
+                            複合検索 <code>A=1 AND B=2</code> に対してはどちらも有効ですが、B単体の検索クエリ <code>WHERE B=2</code>
+                            にもインデックスを効かせるには、Bを左側に置く必要があります（最左プレフィックス）。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q12. LIKE検索の罠</span>
+                        <span class="star-rating">★★★☆☆</span>
+                    </div>
+                    <div>
+                        <p>住所検索 <code>WHERE address LIKE '%東京都%'</code> がインデックスを使わず遅い。なぜか？またどう解決するか？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 中間一致だから。解決策は pg_trgm。</strong><br>
+                            標準のB-treeは「辞書順」なので、先頭の文字が決まらないと探索できません。<br>
+                            解決策:
+                            <code>CREATE EXTENSION pg_trgm; CREATE INDEX ON tbl USING GIN (address gin_trgm_ops);</code>
+                            とすることで、中間一致でもインデックスが効くようになります。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q13. オフセット法 (Pagination) の限界</span>
+                        <span class="star-rating">★★★★☆</span>
+                    </div>
+                    <div>
+                        <p><code>LIMIT 50 OFFSET 1000000</code> が非常に遅い理由を説明し、代替案を示してください。</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 先頭100万件を読み捨てているから。</strong><br>
+                            DBは「100万1件目がどこか」をいきなり知ることはできません。先頭から順に数える必要があります。<br>
+                            代替案（シーク法）: <code>WHERE id > [前ページの最後のID] LIMIT 50</code>
+                            とすることで、インデックスを使ってピンポイントに次のページを開始できます。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q14. システム停止の危機</span>
+                        <span class="star-rating">★★★★☆</span>
+                    </div>
+                    <div>
+                        <p>運用中の超巨大テーブルに対し <code>CREATE INDEX</code> コマンドを昼間に実行したら、ユーザーから「サイトが繋がらない」と苦情が殺到しました。何が起きた？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: テーブルロックによるブロッキング。</strong><br>
+                            通常のインデックス作成は <code>SHARE LOCK</code> を取り、更新処理（INSERT/UPDATE）をブロックします。<br>
+                            回避策: <code>CREATE INDEX CONCURRENTLY</code> を使用すれば、ロックを最小限に抑えてインデックスを作成できます（ただし時間はかかります）。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q15. インデックスとUUID</span>
+                        <span class="star-rating">★★★☆☆</span>
+                    </div>
+                    <div>
+                        <p>主キーに <code>UUID v4</code> (完全ランダムなID)
+                            を採用しました。データ量が増えるにつれ、INSERT性能が急激に悪化しました。インデックスの観点から理由を説明してください。</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: インデックスの断片化とランダムI/O。</strong><br>
+                            ランダムな値はB-treeの「あちこち」に挿入されます。これにより、キャッシュ（バッファ）に乗っていないページへのアクセスが多発し、ディスクI/O負荷が高まります。またページ分割も頻発し、格納効率（充填率）も悪化します。
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- Q16-Q20: Expert Maniac Challenge -->
+            <h3>おまけ: 超上級・マニアック自由研究 (Q16-Q20)</h3>
+            <div class="drill-container">
+
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q16. count(*) と MVCC</span>
+                        <span class="star-rating">★★★★★</span>
+                    </div>
+                    <div>
+                        <p><code>SELECT count(*) FROM users</code>。B-treeインデックスがあるのに、なぜIndex Scanだけで瞬時に件数を返せないのですか？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 可視性(Visibility)の確認が必要だから。</strong><br>
+                            PostgreSQLはMVCCを採用しており、インデックスエントリが存在しても、その行が「今のトランザクションから見て生きて（commitされて）いるか」は分かりません。テーブル本体（Heap）を見てトランザクションID(xmin/xmax)を確認するか、Index
+                            Only Scanが可能ならばVisibility Mapを確認するプロセスが必須となるため、メタデータ上の数字を返すだけで済むMyISAM等とは異なります。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q17. BitmapOr の仕組み</span>
+                        <span class="star-rating">★★★★☆</span>
+                    </div>
+                    <div>
+                        <p><code>WHERE A=1 OR B=2</code> の時、オプティマイザは2つのインデックスをどう組み合わせますか？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 各インデックスの結果（TID）をビットマップ化してOR演算する。</strong><br>
+                            1. インデックスAからヒットしたTIDリストをビットマップ（0/1）にする。<br>
+                            2. インデックスBも同様にビットマップにする。<br>
+                            3. 両者のビットごとの論理和 (OR) をとる。<br>
+                            4. 結果が1になったページ/行だけをHeapに取りに行く。<br>
+                            これが <code>BitmapOr</code> ノードの仕事です。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q18. BRINインデックスの使い所</span>
+                        <span class="star-rating">★★★★☆</span>
+                    </div>
+                    <div>
+                        <p>B-tree ではなく <strong>BRIN (Block Range INdex)</strong> を使うべきなのは、どのようなデータ、どのような用途の時ですか？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 物理的に整列した時系列ビッグデータ。</strong><br>
+                            IoTログや売上履歴など、「日付順にインサートされ、日付で検索する」ような場合、BRINは最小値・最大値だけを保持するため、B-treeに比べてサイズが圧倒的に（数百分の一）小さくなります。検索精度は落ちますが、巨大なテーブルの絞り込みには極めて有効です。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q19. VACUUM FULL とインデックス</span>
+                        <span class="star-rating">★★★★★</span>
+                    </div>
+                    <div>
+                        <p>肥大化したテーブルに <code>VACUUM FULL</code> を実行しました。この時、インデックスはどうなりますか？デメリットは？</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 全てのインデックスが再構築される。</strong><br>
+                            VACUUM FULL はテーブルを新しいファイルに書き写すため、全ての行の物理住所 (TID)
+                            が変わります。これに伴い、付随する全てのインデックスもゼロから作り直しになります。最強のメンテナンスですが、処理中は<b>排他ロック</b>がかかり、テーブルへの一切のアクセスができなくなるのが最大のデメリットです。
+                        </div>
+                    </details>
+                </div>
+
+                <div class="drill-card type-hard">
+                    <div class="drill-q">
+                        <span>Q20. 銀の弾丸</span>
+                        <span class="star-rating">★★★★★</span>
+                    </div>
+                    <div>
+                        <p>「ディスク容量が許す限り、全てのカラムにインデックスを貼っておけば、どんなクエリも速くなるはずだ」という主張を論破してください。</p>
+                    </div>
+                    <details>
+                        <summary>解答を表示</summary>
+                        <div class="answer">
+                            <strong>解答: 更新性能の劣化とオプティマイザの混乱。</strong><br>
+                            1. <b>Write Penalty</b>: インデックスの数だけ、INSERT/UPDATE/DELETE
+                            時に更新処理が発生します。7個インデックスがあれば、1行の追加で8回の書き込みが必要です。<br>
+                            2. <b>Buffer Pool</b>: 無駄なインデックスがメモリ（バッファ）を圧迫し、肝心なデータのキャッシュ率を下げます。<br>
+                            3. <b>Planning Time</b>: 選択肢が多すぎると、オプティマイザが実行計画を考える時間が増えます。<br>
+                            「必要なものだけを作る」のが正解です。
+                        </div>
+                    </details>
+                </div>
+            </div>
+        </section>
+        </section>
+        <footer style="margin-top: 80px; padding: 40px; background-color: #2c3e50; color: white; text-align: center;">
+            <p>&copy; 2026 Database Engineering Advanced Lecture Series</p>
+            <p>Keep Learning, Keep Indexing.</p>
+        </footer>
+
+    </main>
+</body>
+
+</html>

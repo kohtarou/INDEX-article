@@ -1,0 +1,13 @@
+DROP INDEX
+                                                             QUERY PLAN                                                              
+-------------------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..14591.33 rows=10300 width=27) (actual time=0.703..121.700 rows=10033 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   ->  Parallel Seq Scan on users_experiment  (cost=0.00..12561.33 rows=4292 width=27) (actual time=0.026..98.296 rows=3344 loops=3)
+         Filter: (score = 50)
+         Rows Removed by Filter: 329989
+ Planning Time: 0.494 ms
+ Execution Time: 122.493 ms
+(8 rows)
+

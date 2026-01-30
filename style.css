@@ -1,0 +1,129 @@
+body {
+    font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f9f9f9;
+}
+
+header {
+    background-color: #fff;
+    padding: 40px 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 40px;
+    text-align: center;
+}
+
+h1 {
+    margin: 0;
+    font-size: 2em;
+    color: #2c3e50;
+}
+
+article {
+    background-color: #fff;
+    padding: 40px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+h2 {
+    border-bottom: 2px solid #eaeaea;
+    padding-bottom: 10px;
+    margin-top: 40px;
+    color: #2c3e50;
+}
+
+h3 {
+    margin-top: 30px;
+    color: #34495e;
+}
+
+p {
+    margin-bottom: 1.5em;
+}
+
+code {
+    background-color: #f6f8fa;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.9em;
+    color: #e83e8c;
+}
+
+pre {
+    background-color: #2d2d2d;
+    color: #f8f8f2;
+    padding: 15px;
+    border-radius: 5px;
+    overflow-x: auto;
+    line-height: 1.45;
+}
+
+pre code {
+    background-color: transparent;
+    color: inherit;
+    padding: 0;
+    font-size: 0.9em;
+}
+
+blockquote {
+    border-left: 4px solid #dfe2e5;
+    color: #6a737d;
+    margin: 0;
+    padding: 0 1em;
+}
+
+ul, ol {
+    padding-left: 2em;
+}
+
+li {
+    margin-bottom: 0.5em;
+}
+
+details {
+    background-color: #f0f4f8;
+    border: 1px solid #d1d9e6;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 20px 0;
+}
+
+summary {
+    cursor: pointer;
+    font-weight: bold;
+    color: #0366d6;
+    outline: none;
+}
+
+summary:hover {
+    text-decoration: underline;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 20px 0;
+}
+
+th, td {
+    border: 1px solid #dfe2e5;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background-color: #f6f8fa;
+}
+
+.footer {
+    text-align: center;
+    margin-top: 40px;
+    font-size: 0.8em;
+    color: #777;
+}
