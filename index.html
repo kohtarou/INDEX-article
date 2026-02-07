@@ -4,18 +4,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>【DB工学】インデックス設計・究極講義：内部構造(Pages)からコスト計算まで</title>
+    <title>インデックス設計・講義：内部構造からコスト計算まで</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Fira+Code:wght@500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&family=Fira+Code:wght@500&display=swap"
         rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/v10-plus.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/pgsql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script>hljs.highlightAll();</script>
     <style>
         :root {
             --primary-color: #2c3e50;
             --accent-color: #e74c3c;
-            /* Red for expert feel */
+            --code-pg-foreground: #24292e;
+            --code-pg-background: #ebebeb;
+            --code-ln-foreground: #a8a8a8;
+            --code-out-foreground: #ebebeb;
+            --code-out-background: #012456;
+            --main-foreground: #24292e;
             --bg-color: #f4f6f7;
-            --text-color: #2c3e50;
-            --code-bg: #282c34;
             --deep-dive-bg: #ebf5fb;
             --deep-dive-border: #3498db;
             --math-bg: #fff;
@@ -23,9 +34,9 @@
         }
 
         body {
-            font-family: 'Noto Sans JP', sans-serif;
+            font-family: "M PLUS Rounded 1c", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
-            color: var(--text-color);
+            color: var(--main-foreground);
             line-height: 1.8;
             margin: 0;
             padding: 20px;
@@ -63,16 +74,48 @@
             font-size: 1.5em;
         }
 
+        /* Revised code block styling based on user feedback */
         pre {
-            background-color: var(--code-bg);
-            color: #dcdfe4;
+            background-color: var(--code-pg-background);
+            color: var(--code-pg-foreground);
             padding: 20px;
-            border-radius: 8px;
+            border-radius: 10px;
             overflow-x: auto;
             font-family: 'Fira Code', monospace;
-            font-size: 0.9em;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            border: 1px solid #3e4451;
+            font-size: 0.95em;
+            margin-block-start: 0.7em;
+            margin-block-end: 0.7em;
+            position: relative;
+            /* Context for absolute positioning if needed */
+        }
+
+        /* Data Caption Styling */
+        pre[data-caption] {
+            padding-top: 0;
+            /* Caption takes top space */
+            padding-left: 0;
+            padding-right: 0;
+            overflow: hidden;
+            /* Ensure caption background doesn't overflow */
+        }
+
+        pre[data-caption]::before {
+            content: attr(data-caption);
+            display: block;
+            background: var(--code-pg-foreground);
+            color: var(--code-pg-background);
+            padding: 5px 20px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.85em;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        pre[data-caption] code {
+            display: block;
+            padding: 0 20px 20px 20px;
+            overflow-x: auto;
         }
 
         /* Expert Sections */
@@ -228,17 +271,28 @@
 
         .drill-code {
             display: block;
-            background: #282c34;
-            /* Dark theme to match pre */
-            color: #dcdfe4;
             border-left: 5px solid #3498db;
-            padding: 15px;
             margin: 15px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
+            /* Background handled by pre */
+        }
+
+        .drill-code[data-caption]::before {
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+        }
+
+        pre code.hljs {
             font-family: 'Fira Code', monospace;
             font-size: 0.95em;
+            padding: 0;
+            /* pre has padding already */
+            background: transparent;
+            /* Let pre handle background */
             border-radius: 4px;
-            white-space: pre-wrap;
-            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
+            line-height: 1.5;
         }
 
         .star-rating {
@@ -272,11 +326,10 @@
 <body>
 
     <header>
-        <h1>データベース工学 究極講義</h1>
-        <p>Index Design Ultimate Edition: Internals, Cost Model, and 20 Drills</p>
+        <h1>インデックス設計 講義</h1>
         <div style="margin-top: 20px; font-size: 0.9em; opacity: 0.9;">
-            想定読者: データベースの挙動を"物理レベル"で理解したい学生<br>
-            PostgreSQL 17 対応 | 学習時間目安: 120分〜無制限
+            INDEX、B-tree、探索コスト<br>
+            探索アルゴリズムやデータ構造の知識が、SQL の実行性能にどのように結びつくのか
         </div>
     </header>
 
@@ -284,9 +337,9 @@
 
         <section id="intro">
             <h2>0. 序論：なぜそのSQLは遅いのか？</h2>
-            <p>「インデックスを貼れば速くなる」。これは真実ですが、エンジニアとしては50点です。<br>
-                100点の回答は、「<strong>どのようなデータ構造により、物理的なディスクシーク(I/O)をどれだけ削減できるから速くなるのか</strong>」を説明できることです。</p>
-            <p>本講義では、単なる使い方の解説で終わらせません。PostgreSQLのオプティマイザ（頭脳）が計算している<strong>「コスト(Cost)」の数式</strong>を解き明かし、なぜSeq
+            <p>「インデックスを貼れば速くなる」。これは真実ですが、より正確なのは<br>
+                「<strong>どのようなデータ構造により、物理的なディスクシーク(I/O)をどれだけ削減できるから速くなるのか</strong>」を説明できることです。</p>
+            <p>本記事では、PostgreSQLのオプティマイザ（頭脳）が計算している<strong>「コスト(Cost)」の数式</strong>を解き明かし、なぜSeq
                 Scanが選ばれるのか、なぜIndex Scanが選ばれるのかを数学的に証明します。</p>
         </section>
 
@@ -305,7 +358,7 @@
             </div>
 
             <p>今回の実験で作った <code>users_expert</code> テーブル (100万件) の物理サイズを確認してみましょう。</p>
-            <pre><code>SELECT relpages, reltuples FROM pg_class WHERE relname = 'users_expert';
+            <pre><code class="language-sql">SELECT relpages, reltuples FROM pg_class WHERE relname = 'users_expert';
 -- 結果: relpages = 17906, reltuples = 1000000</code></pre>
             <p>つまり、100万件のデータは <strong>17,906個</strong> の8KBページに格納されているということです。<br>
                 全データを読む (Seq Scan) ということは、この17,906ページ全てをディスクからメモリに読み込むことを意味します。</p>
@@ -315,8 +368,8 @@
             <h2>2. コストモデル(Cost Model)の数式</h2>
             <p><code>EXPLAIN</code> で表示される <code>cost=27906.00</code> のような謎の数字。これはオプティマイザが以下のパラメータを使って計算した「推定コスト」です。</p>
 
-            <div class="code-header">実行結果: コストパラメータの確認</div>
-            <pre><code>testdb=# SHOW seq_page_cost;
+
+            <pre data-caption="実行結果: コストパラメータの確認"><code class="language-pgsql">testdb=# SHOW seq_page_cost;
  seq_page_cost 
 ---------------
  1
@@ -349,8 +402,8 @@ testdb=# SHOW cpu_tuple_cost;
                 </p>
                 <p>実際の実行計画を見てみましょう。コストの値がこの計算と完全に一致していることが確認できます。</p>
 
-                <div class="code-header">実行結果: Seq Scan のコスト</div>
-                <pre><code>EXPLAIN (FORMAT JSON, ANALYZE) SELECT * FROM users_expert WHERE score = 50;
+
+                <pre data-caption="実行結果: Seq Scan のコスト"><code class="language-json">EXPLAIN (FORMAT JSON, ANALYZE) SELECT * FROM users_expert WHERE score = 50;
 ----------------------------------------------------------------------------------
  [
    {
@@ -380,8 +433,8 @@ testdb=# SHOW cpu_tuple_cost;
 
             <h3>実験1: インデックススキャンのコスト構造</h3>
             <p>インデックスを作成し、同じクエリを実行してみます。</p>
-            <div class="code-header">実行結果: Index Scan</div>
-            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score = 50;
+
+            <pre data-caption="実行結果: Index Scan"><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score = 50;
 
 Bitmap Heap Scan on users_expert  (cost=116.78..3630.90 rows=10033 width=68)
                                   (actual time=2.169..14.542 rows=9986 loops=1)
@@ -401,8 +454,8 @@ Execution Time: 15.013 ms</code></pre>
 
             <h3>実験2: Index Only Scan と Visibility Map</h3>
             <p>次に、<code>INCLUDE</code> オプション付きのインデックス（カバリングインデックス）を使用した結果です。</p>
-            <div class="code-header">実行結果: Index Only Scan</div>
-            <pre><code>EXPLAIN ANALYZE SELECT id, score FROM users_expert WHERE score = 50;
+
+            <pre data-caption="実行結果: Index Only Scan"><code class="language-pgsql">EXPLAIN ANALYZE SELECT id, score FROM users_expert WHERE score = 50;
 
 Index Only Scan using idx_score_include on users_expert  (cost=0.42..317.92 rows=10033 width=8)
                                                         (actual time=0.046..2.396 rows=9986 loops=1)
@@ -422,7 +475,7 @@ Execution Time: 3.125 ms</code></pre>
             <p><code>(category, score)</code> の複合インデックスに対する2つのクエリ比較です。</p>
 
             <h4>ケースA: 左側のカラム (Category) を指定した場合</h4>
-            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE category = 50;
+            <pre><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert WHERE category = 50;
 
 Bitmap Heap Scan on users_expert  (cost=114.77..3570.62 rows=9898 width=68)
                                   (actual time=1.868..14.306 rows=9909 loops=1)
@@ -432,7 +485,7 @@ Bitmap Heap Scan on users_expert  (cost=114.77..3570.62 rows=9898 width=68)
             <p>問題なくインデックスが使われています。</p>
 
             <h4>ケースB: 右側のカラム (Score) のみを指定した場合</h4>
-            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score = 50;
+            <pre><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score = 50;
 -- (idx_score_expert を削除した状態で実行)
 
 Seq Scan on users_expert  (cost=0.00..27906.00 rows=10110 width=68)
@@ -448,8 +501,8 @@ Seq Scan on users_expert  (cost=0.00..27906.00 rows=10110 width=68)
             <h3>実験4: 範囲検索とソート回避</h3>
             <p>B-tree は順序を持っているため、「10以上20以下」のような範囲検索や、「スコアの高い順」のようなソート処理にも効果を発揮します。</p>
 
-            <div class="code-header">実行結果: Range Scan</div>
-            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score BETWEEN 10 AND 20;
+
+            <pre data-caption="実行結果: Range Scan"><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score BETWEEN 10 AND 20;
 
 Bitmap Heap Scan on users_expert ...
   ->  Bitmap Index Scan on idx_score_expert
@@ -458,8 +511,8 @@ Bitmap Heap Scan on users_expert ...
             <p>さらに強力なのが <strong>ソート回避</strong> です。<code>ORDER BY</code>
                 は通常、重いソート処理（メモリ不足時はディスクソート）が発生しますが、インデックスを使えば「既に並んでいるものを読むだけ」になります。</p>
 
-            <div class="code-header">実行結果: Sort Avoidance (Limit)</div>
-            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert ORDER BY score LIMIT 10;
+
+            <pre data-caption="実行結果: Sort Avoidance (Limit)"><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert ORDER BY score LIMIT 10;
 
 Limit  (cost=0.42..1.17 rows=10 width=68) (actual time=0.046..0.063 rows=10 loops=1)
   ->  Index Scan using idx_score_expert on users_expert  (cost=0.42..30255.42 rows=1000000 width=68)
@@ -477,8 +530,8 @@ Execution Time: 0.078 ms</code></pre>
             </div>
 
             <h4>ケース1: 演算子の使用 (Calculation)</h4>
-            <div class="code-header">実行結果: WHERE score + 10 = 50</div>
-            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score + 10 = 50;
+
+            <pre data-caption="実行結果: WHERE score + 10 = 50"><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score + 10 = 50;
 
 Seq Scan on users_expert  (cost=0.00..30406.00 rows=5000 width=68)
                           (actual time=0.061..135.532 rows=9964 loops=1)
@@ -487,8 +540,8 @@ Seq Scan on users_expert  (cost=0.00..30406.00 rows=5000 width=68)
 
             <h4>ケース2: カーディナリティ (Cardinality) の罠</h4>
             <p><code>pref_code</code> (1〜47) に対して、<code>pref_code > 0</code> （つまり全件ヒット）を実行した場合。</p>
-            <div class="code-header">実行結果: High Hit Rate</div>
-            <pre><code>EXPLAIN ANALYZE SELECT * FROM users_expert WHERE pref_code > 0;
+
+            <pre data-caption="実行結果: High Hit Rate"><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert WHERE pref_code > 0;
 
 Seq Scan on users_expert ...
   Filter: (pref_code > 0)</code></pre>
@@ -612,13 +665,14 @@ Seq Scan on users_expert ...
                     </div>
                     <div>
                         <p><code>users</code> テーブルの <code>email</code> カラムで検索を行う以下のクエリが遅いと報告がありました。</p>
-                        <div class="drill-code">SELECT * FROM users WHERE email = 'test@example.com';</div>
+                        <pre
+                            class="drill-code"><code class="language-sql">SELECT * FROM users WHERE email = 'test@example.com';</code></pre>
                         <p>これを高速化するための最適なDDLを記述してください。</p>
                     </div>
                     <details>
                         <summary>解答を表示</summary>
                         <div class="answer">
-                            <pre><code>CREATE INDEX idx_users_email ON users(email);</code></pre>
+                            <pre><code class="language-sql">CREATE INDEX idx_users_email ON users(email);</code></pre>
                             <p>基本中の基本です。一意性（重複なし）が保証できるなら <code>CREATE UNIQUE INDEX</code> の方がより良いでしょう。</p>
                         </div>
                     </details>
@@ -631,13 +685,14 @@ Seq Scan on users_expert ...
                     </div>
                     <div>
                         <p><code>created_at</code> (TIMESTAMP) カラムを持つテーブルに対し、2025年のデータを抽出したい。</p>
-                        <div class="drill-code">WHERE extract(year from created_at) = 2025</div>
+                        <pre
+                            class="drill-code"><code class="language-sql">WHERE extract(year from created_at) = 2025</code></pre>
                         <p>このクエリを高速化するためのインデックス定義を記述してください。</p>
                     </div>
                     <details>
                         <summary>解答を表示</summary>
                         <div class="answer">
-                            <pre><code>CREATE INDEX idx_users_created_year ON users( extract(year from created_at) );</code></pre>
+                            <pre><code class="language-sql">CREATE INDEX idx_users_created_year ON users( extract(year from created_at) );</code></pre>
                             <p><strong>解説:</strong> 関数適用後の結果に対してインデックスを作成する「関数インデックス」が必要です。<br>
                                 別解として、クエリ側を <code>WHERE created_at BETWEEN '2025-01-01' AND '2025-12-31'</code>
                                 に書き換えられるなら、通常の <code>(created_at)</code> インデックスでも対応可能です。</p>
@@ -653,15 +708,15 @@ Seq Scan on users_expert ...
                     <div>
                         <p>掲示板テーブル <code>posts</code> (category_id, created_at, ...) があります。<br>
                             「特定のカテゴリ(<code>category_id=5</code>)」の投稿を、「新しい順(<code>created_at DESC</code>)」に表示したい。</p>
-                        <div class="drill-code">SELECT * FROM posts
+                        <pre class="drill-code"><code class="language-sql">SELECT * FROM posts
                             WHERE category_id = 5
-                            ORDER BY created_at DESC;</div>
+                            ORDER BY created_at DESC;</code></pre>
                         <p>このクエリで <strong>Sort処理を発生させない</strong> 最適なインデックスは？</p>
                     </div>
                     <details>
                         <summary>解答を表示</summary>
                         <div class="answer">
-                            <pre><code>CREATE INDEX idx_posts_cat_date ON posts(category_id, created_at DESC);</code></pre>
+                            <pre><code class="language-sql">CREATE INDEX idx_posts_cat_date ON posts(category_id, created_at DESC);</code></pre>
                             <p><strong>解説:</strong> <code>category_id</code> で絞り込んだ後、その中身がすでに <code>created_at</code>
                                 順に並んでいる必要があるため、この順序の複合インデックスが必須です。</p>
                         </div>
@@ -681,7 +736,7 @@ Seq Scan on users_expert ...
                     <details>
                         <summary>解答を表示</summary>
                         <div class="answer">
-                            <pre><code>CREATE INDEX idx_active_employees ON employees(id) WHERE deleted_at IS NULL;</code></pre>
+                            <pre><code class="language-sql">CREATE INDEX idx_active_employees ON employees(id) WHERE deleted_at IS NULL;</code></pre>
                             <p><strong>解説:</strong> <code>WHERE</code>
                                 句付きのインデックス（部分インデックス）を作成することで、インデックスサイズを半分に削減でき、更新コストも抑えられます。</p>
                         </div>
@@ -695,15 +750,17 @@ Seq Scan on users_expert ...
                     </div>
                     <div>
                         <p>商品テーブル <code>products</code> から、<code>id</code> と <code>price</code> だけを取得するクエリが頻繁に走ります。</p>
-                        <div class="drill-code">SELECT id, price FROM products WHERE category_id = 10;</div>
+                        <pre
+                            class="drill-code"><code class="language-sql">SELECT id, price FROM products WHERE category_id = 10;</code></pre>
                         <p>テーブル本体へのアクセスを完全に回避し、高速化するためのインデックス定義は？</p>
                     </div>
                     <details>
                         <summary>解答を表示</summary>
                         <div class="answer">
-                            <pre><code>CREATE INDEX idx_products_cover ON products(category_id) INCLUDE (id, price);</code></pre>
+                            <pre><code class="language-sql">CREATE INDEX idx_products_cover ON products(category_id) INCLUDE (id, price);</code></pre>
                             <p><strong>解説:</strong> 検索条件である <code>category_id</code> をキーにし、取得したい <code>id</code>,
-                                <code>price</code> を <code>INCLUDE</code> (付加領域) に含めることで、Index Only Scan を実現できます。</p>
+                                <code>price</code> を <code>INCLUDE</code> (付加領域) に含めることで、Index Only Scan を実現できます。
+                            </p>
                         </div>
                     </details>
                 </div>
@@ -719,7 +776,7 @@ Seq Scan on users_expert ...
                     </div>
                     <div>
                         <p>以下の条件で検索するクエリがあります。</p>
-                        <div class="drill-code">WHERE A = 1 AND B = 2</div>
+                        <pre class="drill-code"><code class="language-sql">WHERE A = 1 AND B = 2</code></pre>
                         <p>これに対し、<code>(A, B)</code> と <code>(B, A)</code> どちらのインデックスを作るべきですか？<br>
                             条件: <code>A</code> は性別（カーディナリティ低）、<code>B</code> は会員ランク（カーディナリティ中）。<br>
                             単体での検索頻度は <code>B</code> の方が多い。</p>
@@ -912,8 +969,9 @@ Seq Scan on users_expert ...
         </section>
         </section>
         <footer style="margin-top: 80px; padding: 40px; background-color: #2c3e50; color: white; text-align: center;">
-            <p>&copy; 2026 Database Engineering Advanced Lecture Series</p>
-            <p>Keep Learning, Keep Indexing.</p>
+            <p>
+                本コンテンツの作成時間：約15時間
+            </p>
         </footer>
 
     </main>
