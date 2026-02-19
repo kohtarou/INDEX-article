@@ -343,6 +343,40 @@
                 Scanが選ばれるのか、なぜIndex Scanが選ばれるのかを数学的に証明します。</p>
         </section>
 
+        <section id="setup">
+            <h2>0.5. 環境構築と事前準備 (Prerequisites & Setup)</h2>
+            <div class="deep-dive" style="border-left-color: #e74c3c;">
+                <h4 style="color: #e74c3c;">前提環境</h4>
+                <p>本記事のすべての検証データおよび実行計画は、以下の環境で取得・検証されています。<br>
+                    <strong>PostgreSQL 17.0 (Docker Container: postgres:17-alpine)</strong>
+                </p>
+                <p>以下のSQLを実行して、検証用テーブル <code>users_expert</code> (100万件) を作成してください。</p>
+            </div>
+
+            <pre data-caption="検証環境セットアップ用SQL (約10秒で完了)"><code class="language-sql">-- 1. テーブル作成
+CREATE TABLE users_expert (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255),
+    category_id INT,  -- 名前を category_id に統一
+    score INT,
+    pref_code INT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 2. データ生成 (100万行)
+INSERT INTO users_expert (email, category_id, score, pref_code, created_at)
+SELECT 
+    'user_' || i || '@example.com',
+    floor(random() * 10 + 1)::int,   -- category_id: 1-10
+    floor(random() * 100 + 1)::int,  -- score: 1-100
+    floor(random() * 47 + 1)::int,   -- pref_code: 1-47
+    NOW() - (random() * interval '365 days')
+FROM generate_series(1, 1000000) AS s(i);
+
+-- 3. 統計情報の更新
+ANALYZE users_expert;</code></pre>
+        </section>
+
         <section id="internals">
             <h2>1. PostgreSQLの物理構造 (Internals)</h2>
 
@@ -434,6 +468,8 @@ testdb=# SHOW cpu_tuple_cost;
             <h3>実験1: インデックススキャンのコスト構造</h3>
             <p>インデックスを作成し、同じクエリを実行してみます。</p>
 
+            <pre><code class="language-sql">CREATE INDEX idx_score_expert ON users_expert(score);</code></pre>
+
             <pre data-caption="実行結果: Index Scan"><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert WHERE score = 50;
 
 Bitmap Heap Scan on users_expert  (cost=116.78..3630.90 rows=10033 width=68)
@@ -455,6 +491,8 @@ Execution Time: 15.013 ms</code></pre>
             <h3>実験2: Index Only Scan と Visibility Map</h3>
             <p>次に、<code>INCLUDE</code> オプション付きのインデックス（カバリングインデックス）を使用した結果です。</p>
 
+            <pre><code class="language-sql">CREATE INDEX idx_score_include ON users_expert(score) INCLUDE (id);</code></pre>
+
             <pre data-caption="実行結果: Index Only Scan"><code class="language-pgsql">EXPLAIN ANALYZE SELECT id, score FROM users_expert WHERE score = 50;
 
 Index Only Scan using idx_score_include on users_expert  (cost=0.42..317.92 rows=10033 width=8)
@@ -472,14 +510,16 @@ Execution Time: 3.125 ms</code></pre>
                 </p>
             </div>
             <h3>実験3: 複合インデックスとB-treeの並び順</h3>
-            <p><code>(category, score)</code> の複合インデックスに対する2つのクエリ比較です。</p>
+            <p><code>(category_id, score)</code> の複合インデックスに対する2つのクエリ比較です。</p>
+
+            <pre><code class="language-sql">CREATE INDEX idx_category_expert ON users_expert(category_id, score);</code></pre>
 
             <h4>ケースA: 左側のカラム (Category) を指定した場合</h4>
-            <pre><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert WHERE category = 50;
+            <pre><code class="language-pgsql">EXPLAIN ANALYZE SELECT * FROM users_expert WHERE category_id = 50;
 
 Bitmap Heap Scan on users_expert  (cost=114.77..3570.62 rows=9898 width=68)
                                   (actual time=1.868..14.306 rows=9909 loops=1)
-  Recheck Cond: (category = 50)
+  Recheck Cond: (category_id = 50)
   ->  Bitmap Index Scan on idx_category_expert  (cost=0.00..112.30 rows=9898 width=0)
                                                (actual time=1.272..1.272 rows=9909 loops=1)</code></pre>
             <p>問題なくインデックスが使われています。</p>
@@ -492,7 +532,7 @@ Seq Scan on users_expert  (cost=0.00..27906.00 rows=10110 width=68)
                           (actual time=0.063..118.590 rows=9986 loops=1)
   Filter: (score = 50)</code></pre>
             <p><strong>インデックスが使われていません（Seq Scan）。</strong><br>
-                <code>(category, score)</code> インデックスは、category でソートされた状態であるため、いきなり score
+                <code>(category_id, score)</code> インデックスは、category_id でソートされた状態であるため、いきなり score
                 を探すことは辞書を「後ろの文字」で引くようなものであり、物理的に不可能なのです。
             </p>
         </section>
